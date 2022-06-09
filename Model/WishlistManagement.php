@@ -7,41 +7,51 @@ use Magento\Framework\Data\Collection;
 use Magento\Framework\Exception\InputException;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Exception\NoSuchEntityException;
-use Magento\Framework\Webapi\Exception;
+use Magento\Store\Model\StoreManagerInterface;
 use Magento\Wishlist\Model\Wishlist\AddProductsToWishlist as AddProductsToWishlistModel;
 use Magento\Wishlist\Model\Wishlist\Data\Error;
-use Magento\Wishlist\Model\WishlistFactory as WishlistModel;
+use Magento\Wishlist\Model\WishlistFactory as MagentoWishlistModel;
+use Magento\Wishlist\Model\Wishlist as MagentoWishlist;
+use Magento\Wishlist\Model\ResourceModel\Item\Collection as WishlistItemCollection;
+use Magento\Wishlist\Model\ResourceModel\Item\CollectionFactory as WishlistItemCollectionFactory;
+use Magento\Framework\Webapi\Rest\Request;
+use Magento\Store\Api\Data\StoreInterface;
 use Psr\Log\LoggerInterface as Logger;
 use Zanui\ApiWishlist\Api\Data\ItemsAddedOutputInterface;
 use Zanui\ApiWishlist\Api\WishlistManagementInterface;
-use Zanui\ApiWishlist\Model\WishlistItemsFactory as WishlistItems;
-use Zanui\ApiWishlist\Model\SpecialPriceFactory as SpecialPrice;
+use Zanui\ApiWishlist\Model\WishlistItemFactory as WishlistItem;
+use Zanui\ApiWishlist\Model\WishlistFactory as Wishlist;
 use Zanui\ApiWishlist\Model\ItemsAddedOutputFactory as ItemsAddedOutput;
 use Zanui\ApiWishlist\Helper\ProductHelper;
 use Zanui\ApiWishlist\Helper\WishlistHelper;
-use Magento\Framework\Webapi\Rest\Request;
+
 
 class WishlistManagement implements WishlistManagementInterface
 {
     /**
-     * @var WishlistModel
+     * @var MagentoWishlistModel
      */
-    protected $wishlist;
+    protected $magentoWishlistModel;
 
     /**
-     * @var WishlistItemsFactory
+     * @var WishlistItemCollectionFactory
      */
-    protected $wishlistItems;
-
-    /**
-     * @var SpecialPriceFactory
-     */
-    protected $specialPrice;
+    private $wishlistItemCollectionFactory;
 
     /**
      * @var ProductHelper
      */
     protected $productHelper;
+
+    /**
+     * @var Wishlist
+     */
+    protected $wishlist;
+
+    /**
+     * @var WishlistItem
+     */
+    protected $wishlistItem;
 
     /**
      * @var WishlistHelper
@@ -69,69 +79,73 @@ class WishlistManagement implements WishlistManagementInterface
     protected $request;
 
     /**
-     * @param WishlistModel $wishlist
-     * @param WishlistItemsFactory $wishlistItems
-     * @param SpecialPriceFactory $specialPrice
+     * @var StoreManagerInterface
+     */
+    private $storeManager;
+
+    /**
+     * @param MagentoWishlistModel $magentoWishlistModel
+     * @param WishlistItemCollectionFactory $wishlistItemCollectionFactory
+     * @param AddProductsToWishlistModel $addProductsToWishlist
+     * @param StoreManagerInterface $storeManager
+     * @param Request $request
+     * @param WishlistFactory $wishlist
+     * @param WishlistItemFactory $wishlistItem
+     * @param ItemsAddedOutputFactory $itemsAddedOutput
      * @param ProductHelper $productHelper
      * @param WishlistHelper $wishlistHelper
-     * @param AddProductsToWishlistModel $addProductsToWishlist
-     * @param ItemsAddedOutputFactory $itemsAddedOutput
-     * @param Request $request
      * @param Logger $logger
      */
     public function __construct(
-        WishlistModel              $wishlist,
-        WishlistItems              $wishlistItems,
-        SpecialPrice               $specialPrice,
-        ProductHelper              $productHelper,
-        WishlistHelper             $wishlistHelper,
-        AddProductsToWishlistModel $addProductsToWishlist,
-        ItemsAddedOutput           $itemsAddedOutput,
-        Request                    $request,
-        Logger                     $logger
+        MagentoWishlistModel          $magentoWishlistModel,
+        WishlistItemCollectionFactory $wishlistItemCollectionFactory,
+        AddProductsToWishlistModel    $addProductsToWishlist,
+        StoreManagerInterface         $storeManager,
+        Request                       $request,
+        Wishlist                      $wishlist,
+        WishlistItem                  $wishlistItem,
+        ItemsAddedOutput              $itemsAddedOutput,
+        ProductHelper                 $productHelper,
+        WishlistHelper                $wishlistHelper,
+        Logger                        $logger
     )
     {
+        $this->magentoWishlistModel = $magentoWishlistModel;
+        $this->wishlistItemCollectionFactory = $wishlistItemCollectionFactory;
+        $this->addProductsToWishlist = $addProductsToWishlist;
+        $this->storeManager = $storeManager;
+        $this->request = $request;
         $this->wishlist = $wishlist;
-        $this->wishlistItems = $wishlistItems;
-        $this->specialPrice = $specialPrice;
+        $this->wishlistItem = $wishlistItem;
+        $this->wishlistItemsAdded = $itemsAddedOutput;
         $this->productHelper = $productHelper;
         $this->wishlistHelper = $wishlistHelper;
-        $this->addProductsToWishlist = $addProductsToWishlist;
-        $this->wishlistItemsAdded = $itemsAddedOutput;
         $this->logger = $logger;
-        $this->request = $request;
+
     }
 
     /**
      * @param $customerId
-     * @return \Zanui\ApiWishlist\Model\WishlistItems[]
-     * @throws NoSuchEntityException
+     * @return \Zanui\ApiWishlist\Model\Wishlist
      * @throws InputException
-     * @throws Exception
      */
     public function getWishlistForCustomer($customerId)
     {
         try {
-            $data = [];
+            $wishlistOutput = $this->wishlist->create();
             if (null === $customerId || 0 === $customerId) {
                 throw new InputException(__('The current user cannot perform operations on wishlist'));
             } else {
-                $wishListCustomer = $this->wishlist->create()->loadByCustomerId($customerId);
-                //get param for pagination
-                $currentPage = $this->request->getParam('currentPage') ?? 1;
-                $pageSize = $this->request->getParam('pageSize') ?? 20;
-                //pagination and sort items by latest added
-                $collection = $wishListCustomer->getItemCollection()
-                    ->setPageSize($pageSize)
-                    ->setCurPage($currentPage)
-                    ->setOrder('wishlist_item_id', Collection::SORT_ORDER_DESC);
-                //get data for wishlist items
-                if ($wishListCustomer->getItemCollection()->count()) {
-                    $wishListItems = $this->wishlistItems->create();
-                    foreach ($collection as $item) {
-                        $data[] = clone $this->getWishlistItemsData($wishListItems, $item);
-                    }
+                $wishListByCustomer = $this->magentoWishlistModel->create()->loadByCustomerId($customerId);
+                if (null === $wishListByCustomer->getId()) {
+                    return $wishlistOutput;
                 }
+                //set data for wishlist output
+                $wishlistOutput->setWishlistId($wishListByCustomer->getId());
+                $wishlistOutput->setSharingCode($wishListByCustomer->getSharingCode());
+                $wishlistOutput->setUpdatedAt($wishListByCustomer->getUpdatedAt());
+                $wishlistOutput->setItemsCount($wishListByCustomer->getItemsCount());
+                $wishlistOutput->setItems($this->getWishlistItemsData($wishListByCustomer));
             }
         } catch (LocalizedException $e) {
             $this->logger->critical($e);
@@ -142,7 +156,7 @@ class WishlistManagement implements WishlistManagementInterface
                 )
             );
         }
-        return $data;
+        return $wishlistOutput;
     }
 
     /**
@@ -155,30 +169,21 @@ class WishlistManagement implements WishlistManagementInterface
     {
         try {
             $itemsAdded = $this->wishlistItemsAdded->create();
-            $dataItemsOutput = [];
             if (null === $customerId || 0 === $customerId) {
                 throw new InputException(__('The current user cannot perform operations on wishlist'));
             } else {
                 //get wishlist data
                 $wishlistId = $wishlistItems->getWishlistId() ?: null;
-                $wishlist = $this->wishlistHelper->getWishlist($wishlistId, $customerId);
+                $wishlistModel = $this->wishlistHelper->getWishlist($wishlistId, $customerId);
 
-                if (null === $wishlist->getId() || $customerId !== (int)$wishlist->getCustomerId()) {
+                if (null === $wishlistModel->getId() || $customerId !== (int)$wishlistModel->getCustomerId()) {
                     throw new InputException(__('The wishlist was not found.'));
                 }
                 //get wishlist items data
                 $wishlistItems = $this->wishlistHelper->getWishlistItems($wishlistItems->getItems());
                 //add items to wishlist
-                $wishlistOutput = $this->addProductsToWishlist->execute($wishlist, $wishlistItems);
-                //get wishlist items with extra field
-                $this->wishlist->create()->loadByCustomerId($customerId);
-                $collection = $this->wishlist->create()->loadByCustomerId($customerId)->getItemCollection()
-                    ->setOrder('wishlist_item_id', Collection::SORT_ORDER_DESC);
-                $wishListItemsOutput = $this->wishlistItems->create();
-                foreach ($collection as $item) {
-                    $dataItemsOutput[] = clone $this->getWishlistItemsData($wishListItemsOutput, $item);
-                }
-                $itemsAdded->setWishlistItems($dataItemsOutput);
+                $wishlistOutput = $this->addProductsToWishlist->execute($wishlistModel, $wishlistItems);
+                $itemsAdded->setWishlistItems($this->getWishlistItemsData($wishlistOutput->getWishlist()));
                 //add error message into output
                 $itemsAdded->setUserError(array_map(
                     function (Error $error) {
@@ -204,29 +209,63 @@ class WishlistManagement implements WishlistManagementInterface
     }
 
     /**
-     * @param $wishListItems
-     * @param $item
-     * @return mixed
+     * @param MagentoWishlist $wishList
+     * @return array
      * @throws NoSuchEntityException
      */
-    private function getWishlistItemsData($wishListItems, $item)
+    private function getWishlistItemsData(MagentoWishlist $wishList)
     {
-        $currentProduct = $item->getProduct();
-        //check and get child product
-        if ($currentProduct->getTypeId() != 'simple') {
-            if ($idChild = $item->getOptionByCode('simple_product')) {
-                $currentProduct = $this->productHelper->getChildProduct($idChild->getProductId());
+        $itemsData = [];
+        //load wishlist items
+        /** @var WishlistItemCollection $wishlistItemCollection */
+        $wishlistItemsCollection = $this->getWishListItems($wishList);
+        $wishlistItems = $wishlistItemsCollection->getItems();
+        //get data wishlist items
+        foreach ($wishlistItems as $wishlistItem) {
+            $wishListItem = $this->wishlistItem->create();
+            $currentProduct = $wishlistItem->getProduct();
+            //check and get child product
+            if ($currentProduct->getTypeId() != 'simple') {
+                if ($idChild = $wishlistItem->getOptionByCode('simple_product')) {
+                    $currentProduct = $this->productHelper->getChildProduct($idChild->getProductId());
+                }
             }
+            //prepare data wishlist items
+            $wishListItem->setItemId($wishlistItem->getWishlistItemId());
+            $wishListItem->setQuantity($wishlistItem->getQty());
+            $wishListItem->setImageUrl($this->productHelper->getImageUrl($currentProduct, 'product_base_image'));
+            $wishListItem->setProduct($currentProduct);
+            $itemsData[] = $wishListItem;
         }
-        //prepare data wishlist
-        $wishListItems->setWishlistId($item->getWishlistId());
-        $wishListItems->setItemId($item->getWishlistItemId());
-        $wishListItems->setProductId($currentProduct->getId());
-        $wishListItems->setName($currentProduct->getName());
-        $wishListItems->setSku($currentProduct->getSku());
-        $wishListItems->setImage($this->productHelper->getImageUrl($currentProduct, 'product_base_image'));
-        $wishListItems->setPrice((float)$currentProduct->getPrice());
-        $wishListItems->setSpecialPrice($this->productHelper->getSpecialPriceInfor($currentProduct));
-        return $wishListItems;
+        return $itemsData;
+    }
+
+    /**
+     * Get wishlist items
+     *
+     * @param MagentoWishlist $wishlist
+     * @return WishlistItemCollection
+     */
+    private function getWishListItems(MagentoWishlist $wishlist)
+    {
+        //get param for pagination
+        $currentPage = $this->request->getParam('currentPage') ?? 1;
+        $pageSize = $this->request->getParam('pageSize') ?? 20;
+
+        $wishlistItemCollection = $this->wishlistItemCollectionFactory->create();
+        $wishlistItemCollection
+            ->addWishlistFilter($wishlist)
+            ->addStoreFilter(array_map(function (StoreInterface $store) {
+                return $store->getId();
+            }, $this->storeManager->getStores()))
+            ->setVisibilityFilter()
+            ->setOrder('wishlist_item_id', Collection::SORT_ORDER_DESC);
+        if ($currentPage > 0) {
+            $wishlistItemCollection->setCurPage($currentPage);
+        }
+        if ($pageSize > 0) {
+            $wishlistItemCollection->setPageSize($pageSize);
+        }
+        return $wishlistItemCollection;
     }
 }

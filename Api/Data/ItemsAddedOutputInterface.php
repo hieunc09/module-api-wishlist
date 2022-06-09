@@ -10,15 +10,15 @@ interface ItemsAddedOutputInterface extends \Magento\Framework\Api\ExtensibleDat
     /**
      * Get wishlist items
      *
-     * @return \Zanui\ApiWishlist\Api\Data\WishlistItemsInterface[]
+     * @return \Zanui\ApiWishlist\Api\Data\WishlistItemInterface[]
      */
     public function getWishlistItems();
 
     /**
      * Set wishlist items
      *
-     * @param \Zanui\ApiWishlist\Api\Data\WishlistItemsInterface[] items
-     * @return \Zanui\ApiWishlist\Api\Data\WishlistItemsInterface[]
+     * @param \Zanui\ApiWishlist\Api\Data\WishlistItemInterface[] items
+     * @return \Zanui\ApiWishlist\Api\Data\WishlistItemInterface[]
      */
     public function setWishlistItems($items);
 

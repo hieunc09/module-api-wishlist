@@ -2,14 +2,14 @@
 
 namespace Zanui\ApiWishlist\Api;
 
-interface WishlistManagementInterface
+interface   WishlistManagementInterface
 {
 
     /**
      * Return Wishlist items.
      *
      * @param int $customerId
-     * @return \Zanui\ApiWishlist\Api\Data\WishlistItemsInterface[]
+     * @return \Zanui\ApiWishlist\Api\Data\WishlistInterface
      */
     public function getWishlistForCustomer($customerId);
 

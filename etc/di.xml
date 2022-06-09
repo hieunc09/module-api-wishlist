@@ -3,11 +3,11 @@
         xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
     <preference for="Zanui\ApiWishlist\Api\WishlistManagementInterface"
                 type="Zanui\ApiWishlist\Model\WishlistManagement"/>
-    <preference for="Zanui\ApiWishlist\Api\Data\WishlistItemsInterface" type="Zanui\ApiWishlist\Model\WishlistItems"/>
+    <preference for="Zanui\ApiWishlist\Api\Data\WishlistInterface" type="Zanui\ApiWishlist\Model\Wishlist"/>
+    <preference for="Zanui\ApiWishlist\Api\Data\WishlistItemInterface" type="Zanui\ApiWishlist\Model\WishlistItem"/>
     <preference for="Zanui\ApiWishlist\Api\Data\WishlistItemsAddInterface"
                 type="Zanui\ApiWishlist\Model\WishlistItemsAdd"/>
     <preference for="Zanui\ApiWishlist\Api\Data\ItemAddInterface" type="Zanui\ApiWishlist\Model\ItemAdd"/>
     <preference for="Zanui\ApiWishlist\Api\Data\ItemsAddedOutputInterface"
                 type="Zanui\ApiWishlist\Model\ItemsAddedOutput"/>
-    <preference for="Zanui\ApiWishlist\Api\Data\SpecialPriceInterface" type="Zanui\ApiWishlist\Model\SpecialPrice"/>
 </config>

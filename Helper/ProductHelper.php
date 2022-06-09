@@ -11,17 +11,10 @@ use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Store\Model\App\Emulation as AppEmulation;
 use Magento\Store\Model\StoreManagerInterface;
 use Psr\Log\LoggerInterface as Logger;
-use Zanui\ApiWishlist\Api\Data\SpecialPriceInterface;
-use Zanui\ApiWishlist\Model\SpecialPriceFactory as SpecialPrice;
 use Magento\Catalog\Model\ProductRepository;
 
 class ProductHelper extends AbstractHelper
 {
-    /**
-     * @var SpecialPrice
-     */
-    protected $specialPrice;
-
     /**
      *
      * @var StoreManagerInterface
@@ -49,7 +42,6 @@ class ProductHelper extends AbstractHelper
     protected $logger;
 
     /**
-     * @param SpecialPrice $specialPrice
      * @param StoreManagerInterface $storeManager
      * @param AppEmulation $appEmulation
      * @param ProductImageHelper $productImageHelper
@@ -58,7 +50,6 @@ class ProductHelper extends AbstractHelper
      * @param Context $context
      */
     public function __construct(
-        SpecialPrice          $specialPrice,
         StoreManagerInterface $storeManager,
         AppEmulation          $appEmulation,
         ProductImageHelper    $productImageHelper,
@@ -67,7 +58,6 @@ class ProductHelper extends AbstractHelper
         Context               $context
     )
     {
-        $this->specialPrice = $specialPrice;
         $this->storeManager = $storeManager;
         $this->appEmulation = $appEmulation;
         $this->productImageHelper = $productImageHelper;
@@ -93,21 +83,6 @@ class ProductHelper extends AbstractHelper
             throw new \LogicException($errorMessage);
         }
         return $productChild;
-    }
-
-    /**
-     * @param $product
-     * @return SpecialPriceInterface
-     */
-    public function getSpecialPriceInfor($product): SpecialPriceInterface
-    {
-        $specialPrice = $this->specialPrice->create();
-        if (!empty($product->getSpecialPrice())) {
-            $specialPrice->setSpecialPrice((float)$product->getSpecialPrice());
-            $specialPrice->setPriceFrom($product->getSpecialFromDate());
-            $specialPrice->setPriceTo($product->getSpecialToDate());
-        }
-        return $specialPrice;
     }
 
     /**
